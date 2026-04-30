@@ -21,12 +21,14 @@ set(ZMQ_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 set(ENABLE_CURVE OFF CACHE BOOL "" FORCE)
 set(ENABLE_DRAFTS OFF CACHE BOOL "" FORCE)
 set(CPPZMQ_BUILD_TESTS OFF CACHE BOOL "" FORCE)
-if(WIN32)
-    set(BUILD_SHARED OFF CACHE BOOL "" FORCE)
-    set(BUILD_STATIC ON CACHE BOOL "" FORCE)
-endif()
 add_subdirectory(extern/libzmq)
 add_subdirectory(extern/cppzmq)
+
+if(WIN32)
+    set(ZMQAE_LIBZMQ libzmq-static)
+else()
+    set(ZMQAE_LIBZMQ libzmq)
+endif()
 
 target_include_directories(zmqae INTERFACE
     ${CMAKE_CURRENT_SOURCE_DIR}/extern/cppzmq
@@ -35,7 +37,7 @@ target_include_directories(zmqae INTERFACE
     ${CMAKE_CURRENT_SOURCE_DIR}/extern/libzmq/include
 )
 
-target_link_libraries(zmqae INTERFACE cppzmq libzmq)
+target_link_libraries(zmqae INTERFACE cppzmq ${ZMQAE_LIBZMQ})
 
 # --- Tests ---
 option(ZMQAE_BUILD_TESTS "Build tests" ON)
