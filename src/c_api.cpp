@@ -37,6 +37,7 @@ struct c_router {
 
 struct c_ctx {
     std::shared_ptr<zmqae::perform_context> impl;
+    mutable std::string cached_payload;
 };
 
 } // namespace
@@ -90,7 +91,8 @@ int zmqae_client_perform(zmqae_client_t *client, const char *effect,
         c->impl->perform(std::string{effect}, json,
                          [callback, user_data](zmqae::result res) {
             const char *id_str = res.id().c_str();
-            const char *val_str = res.is_ok() ? res.value().dump().c_str() : nullptr;
+            std::string val_dump = res.is_ok() ? res.value().dump() : std::string{};
+            const char *val_str = res.is_ok() ? val_dump.c_str() : nullptr;
             const char *err_str = res.is_error() ? res.error().c_str() : nullptr;
             callback(user_data, id_str, val_str, err_str);
         });
@@ -119,7 +121,8 @@ int zmqae_client_perform_timeout(zmqae_client_t *client, const char *effect,
         c->impl->perform(std::string{effect}, json,
                          [callback, user_data](zmqae::result res) {
             const char *id_str = res.id().c_str();
-            const char *val_str = res.is_ok() ? res.value().dump().c_str() : nullptr;
+            std::string val_dump = res.is_ok() ? res.value().dump() : std::string{};
+            const char *val_str = res.is_ok() ? val_dump.c_str() : nullptr;
             const char *err_str = res.is_error() ? res.error().c_str() : nullptr;
             callback(user_data, id_str, val_str, err_str);
         }, timeout_ms);
@@ -160,7 +163,8 @@ int zmqae_client_perform_binary(zmqae_client_t *client, const char *effect,
         c->impl->perform(std::string{effect}, json, vec_bins,
                          [callback, user_data](zmqae::result res) {
             const char *id_str = res.id().c_str();
-            const char *val_str = res.is_ok() ? res.value().dump().c_str() : nullptr;
+            std::string val_dump = res.is_ok() ? res.value().dump() : std::string{};
+            const char *val_str = res.is_ok() ? val_dump.c_str() : nullptr;
             const char *err_str = res.is_error() ? res.error().c_str() : nullptr;
             callback(user_data, id_str, val_str, err_str);
         }, timeout_ms);
@@ -341,7 +345,9 @@ const char *zmqae_ctx_get_payload(zmqae_perform_ctx_t *ctx) {
     if (!ctx) {
         return "";
     }
-    return opaque_ptr<c_ctx>(ctx)->impl->payload().dump().c_str();
+    auto *c = opaque_ptr<c_ctx>(ctx);
+    c->cached_payload = c->impl->payload().dump();
+    return c->cached_payload.c_str();
 }
 
 int zmqae_ctx_binary_count(zmqae_perform_ctx_t *ctx) {
