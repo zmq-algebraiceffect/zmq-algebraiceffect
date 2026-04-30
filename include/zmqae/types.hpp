@@ -39,7 +39,7 @@ class result {
     result(std::string id, json value, std::vector<std::vector<std::byte>> bins)
         : id_{std::move(id)}
         , is_error_{false}
-        , value_{std::move(value)}
+        , value_(std::move(value))
         , binary_data_{std::move(bins)}
     {}
 

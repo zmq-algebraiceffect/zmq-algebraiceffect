@@ -30,7 +30,7 @@ public:
         std::shared_ptr<detail::mpsc_queue<std::vector<zmq::message_t>>> send_queue)
         : id_{std::move(id)}
         , effect_{std::move(effect)}
-        , payload_{std::move(payload)}
+        , payload_(std::move(payload))
         , binary_data_{std::move(binary_data)}
         , identity_frame_{std::move(identity_frame)}
         , send_queue_{std::move(send_queue)}
