@@ -49,6 +49,30 @@ TEST_CASE("GCC JSON sanity: direct assignment preserves types") {
     CHECK(header2["value"].is_null());
 }
 
+TEST_CASE("GCC JSON sanity: result::make_resume preserves json type") {
+    auto r = zmqae::result::make_resume("test-id", zmqae::json(42));
+    CHECK(r.value().is_number_integer());
+    CHECK(r.value().get<int>() == 42);
+
+    auto r2 = zmqae::result::make_resume("test-id-2", zmqae::json(nullptr));
+    CHECK(r2.value().is_null());
+}
+
+TEST_CASE("GCC JSON sanity: expected<result> round-trip") {
+    auto exp = zmqae::detail::expected<zmqae::result, std::string>::ok(
+        zmqae::result::make_resume("test-id", zmqae::json(42)));
+    CHECK(exp->value().is_number_integer());
+    CHECK(exp->value().get<int>() == 42);
+}
+
+TEST_CASE("GCC JSON sanity: json move constructor") {
+    zmqae::json original = zmqae::json(42);
+    CHECK(original.is_number_integer());
+    zmqae::json moved = std::move(original);
+    CHECK(moved.is_number_integer());
+    CHECK(moved.get<int>() == 42);
+}
+
 // ─── TC-1.1.x: perform required field validation ───────────────────────
 
 TEST_CASE("TC-1.1.1: perform with all required fields accepted") {
