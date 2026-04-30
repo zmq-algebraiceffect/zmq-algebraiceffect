@@ -33,13 +33,29 @@ std::vector<std::byte> to_bytes(const std::string &s) {
 
 } // namespace
 
+// ─── GCC JSON sanity check ──────────────────────────────────────────
+
+TEST_CASE("GCC JSON sanity: direct assignment preserves types") {
+    zmqae::json header;
+    header["id"] = "test-uuid";
+    header["value"] = 42;
+    CHECK(header["value"].is_number_integer());
+    CHECK(header["value"].get<int>() == 42);
+    CHECK(header.dump() == "{\"id\":\"test-uuid\",\"value\":42}");
+
+    zmqae::json header2;
+    header2["id"] = "test-uuid-2";
+    header2["value"] = nullptr;
+    CHECK(header2["value"].is_null());
+}
+
 // ─── TC-1.1.x: perform required field validation ───────────────────────
 
 TEST_CASE("TC-1.1.1: perform with all required fields accepted") {
     zmqae::perform_message msg;
     msg.id = zmqae::generate_uuid();
     msg.effect = "TestEffect";
-    msg.payload["key"] = "value";
+    msg.payload = zmqae::json::parse(R"({"key":"value"})");
 
     auto frames = zmqae::detail::serialize_perform(msg);
     zmq::message_t body = std::move(frames[0]);
@@ -107,10 +123,8 @@ TEST_CASE("TC-1.1.5: perform with null payload accepted") {
 // ─── TC-1.2.x: resume required field validation ────────────────────────
 
 TEST_CASE("TC-1.2.1: resume with all required fields accepted") {
-    zmqae::json header;
-    header["id"] = zmqae::generate_uuid();
-    header["value"] = 42;
-    auto body = str_to_msg(header.dump());
+    std::string json_str = R"({"id":")" + zmqae::generate_uuid() + R"(","value":42})";
+    auto body = str_to_msg(json_str);
     std::vector<zmq::message_t> bins;
 
     auto result = zmqae::detail::parse_incoming_message(body, bins);
@@ -120,10 +134,8 @@ TEST_CASE("TC-1.2.1: resume with all required fields accepted") {
 }
 
 TEST_CASE("TC-1.2.2: resume with null value accepted") {
-    zmqae::json header;
-    header["id"] = zmqae::generate_uuid();
-    header["value"] = nullptr;
-    auto body = str_to_msg(header.dump());
+    std::string json_str = R"({"id":")" + zmqae::generate_uuid() + R"(","value":null})";
+    auto body = str_to_msg(json_str);
     std::vector<zmq::message_t> bins;
 
     auto result = zmqae::detail::parse_incoming_message(body, bins);
@@ -307,8 +319,7 @@ TEST_CASE("MSG-SER-01: perform message round-trip") {
     zmqae::perform_message orig;
     orig.id = zmqae::generate_uuid();
     orig.effect = "RoundTrip";
-    orig.payload["nested"] = true;
-    orig.payload["count"] = 7;
+    orig.payload = zmqae::json::parse(R"({"nested":true,"count":7})");
     orig.binary_frames = 0;
 
     auto frames = zmqae::detail::serialize_perform(orig);
@@ -329,7 +340,7 @@ TEST_CASE("MSG-SER-01: perform message round-trip") {
 TEST_CASE("MSG-SER-02: resume message round-trip") {
     zmqae::resume_message orig;
     orig.id = zmqae::generate_uuid();
-    orig.value["result"] = 3.14;
+    orig.value = zmqae::json::parse(R"({"result":3.14})");
     orig.binary_frames = 0;
 
     auto frames = zmqae::detail::serialize_resume(orig);
