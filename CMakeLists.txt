@@ -20,6 +20,7 @@ target_include_directories(zmqae INTERFACE
 set(ZMQ_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 set(ENABLE_CURVE OFF CACHE BOOL "" FORCE)
 set(ENABLE_DRAFTS OFF CACHE BOOL "" FORCE)
+set(CPPZMQ_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 add_subdirectory(extern/libzmq)
 add_subdirectory(extern/cppzmq)
 
