@@ -1,15 +1,15 @@
 [submodule "extern/libzmq"]
 	path = extern/libzmq
-	url = git@github.com:zeromq/libzmq.git
+	url = https://github.com/zeromq/libzmq.git
 [submodule "extern/cppzmq"]
 	path = extern/cppzmq
-	url = git@github.com:zeromq/cppzmq.git
+	url = https://github.com/zeromq/cppzmq.git
 [submodule "extern/json"]
 	path = extern/json
-	url = git@github.com:nlohmann/json.git
+	url = https://github.com/nlohmann/json.git
 [submodule "extern/spdlog"]
 	path = extern/spdlog
-	url = git@github.com:gabime/spdlog.git
+	url = https://github.com/gabime/spdlog.git
 [submodule "extern/doctest"]
 	path = extern/doctest
-	url = git@github.com:doctest/doctest.git
+	url = https://github.com/doctest/doctest.git
