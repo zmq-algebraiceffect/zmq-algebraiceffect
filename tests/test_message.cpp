@@ -15,6 +15,15 @@
 
 namespace {
 
+// Safe JSON object construction — avoids initializer_list ambiguity on GCC
+zmqae::json mk_obj(std::initializer_list<std::pair<const char *, zmqae::json>> pairs) {
+    zmqae::json j;
+    for (const auto &p : pairs) {
+        j[p.first] = p.second;
+    }
+    return j;
+}
+
 zmq::message_t str_to_msg(const std::string &s) {
     return zmq::message_t{s.data(), s.size()};
 }
@@ -36,7 +45,7 @@ TEST_CASE("TC-1.1.1: perform with all required fields accepted") {
     zmqae::perform_message msg;
     msg.id = zmqae::generate_uuid();
     msg.effect = "TestEffect";
-    msg.payload = zmqae::json::object({{"key", "value"}});
+    msg.payload = mk_obj({{"key", "value"}});
 
     auto frames = zmqae::detail::serialize_perform(msg);
     zmq::message_t body = std::move(frames[0]);
@@ -54,7 +63,7 @@ TEST_CASE("TC-1.1.1: perform with all required fields accepted") {
 }
 
 TEST_CASE("TC-1.1.2: perform missing id returns error") {
-    zmqae::json header = zmqae::json::object({{"effect", "Test"}, {"payload", "data"}});
+    zmqae::json header = mk_obj({{"effect", "Test"}, {"payload", "data"}});
     auto body = str_to_msg(header.dump());
     std::vector<zmq::message_t> bins;
 
@@ -64,7 +73,7 @@ TEST_CASE("TC-1.1.2: perform missing id returns error") {
 }
 
 TEST_CASE("TC-1.1.3: perform missing effect returns error") {
-    zmqae::json header = zmqae::json::object({{"id", "some-uuid"}, {"payload", "data"}});
+    zmqae::json header = mk_obj({{"id", "some-uuid"}, {"payload", "data"}});
     auto body = str_to_msg(header.dump());
     std::vector<zmq::message_t> bins;
 
@@ -74,7 +83,7 @@ TEST_CASE("TC-1.1.3: perform missing effect returns error") {
 }
 
 TEST_CASE("TC-1.1.4: perform missing payload returns error") {
-    zmqae::json header = zmqae::json::object({{"id", "some-uuid"}, {"effect", "Test"}});
+    zmqae::json header = mk_obj({{"id", "some-uuid"}, {"effect", "Test"}});
     auto body = str_to_msg(header.dump());
     std::vector<zmq::message_t> bins;
 
@@ -83,7 +92,7 @@ TEST_CASE("TC-1.1.4: perform missing payload returns error") {
 }
 
 TEST_CASE("TC-1.1.5: perform with null payload accepted") {
-    zmqae::json header = zmqae::json::object({{"id", zmqae::generate_uuid()},
+    zmqae::json header = mk_obj({{"id", zmqae::generate_uuid()},
                           {"effect", "Test"},
                           {"payload", nullptr}});
     auto body = str_to_msg(header.dump());
@@ -97,7 +106,7 @@ TEST_CASE("TC-1.1.5: perform with null payload accepted") {
 // ─── TC-1.2.x: resume required field validation ────────────────────────
 
 TEST_CASE("TC-1.2.1: resume with all required fields accepted") {
-    zmqae::json header = zmqae::json::object({{"id", zmqae::generate_uuid()}, {"value", 42}});
+    zmqae::json header = mk_obj({{"id", zmqae::generate_uuid()}, {"value", 42}});
     auto body = str_to_msg(header.dump());
     std::vector<zmq::message_t> bins;
 
@@ -108,7 +117,7 @@ TEST_CASE("TC-1.2.1: resume with all required fields accepted") {
 }
 
 TEST_CASE("TC-1.2.2: resume with null value accepted") {
-    zmqae::json header = zmqae::json::object({{"id", zmqae::generate_uuid()}, {"value", nullptr}});
+    zmqae::json header = mk_obj({{"id", zmqae::generate_uuid()}, {"value", nullptr}});
     auto body = str_to_msg(header.dump());
     std::vector<zmq::message_t> bins;
 
@@ -121,7 +130,7 @@ TEST_CASE("TC-1.2.2: resume with null value accepted") {
 // ─── TC-1.3.x: error required field validation ─────────────────────────
 
 TEST_CASE("TC-1.3.1: error with all required fields accepted") {
-    zmqae::json header = zmqae::json::object({{"id", zmqae::generate_uuid()},
+    zmqae::json header = mk_obj({{"id", zmqae::generate_uuid()},
                           {"error", "something went wrong"}});
     auto body = str_to_msg(header.dump());
     std::vector<zmq::message_t> bins;
@@ -133,7 +142,7 @@ TEST_CASE("TC-1.3.1: error with all required fields accepted") {
 }
 
 TEST_CASE("TC-1.3.2: error message ignores binary_frames") {
-    zmqae::json header = zmqae::json::object({{"id", zmqae::generate_uuid()},
+    zmqae::json header = mk_obj({{"id", zmqae::generate_uuid()},
                           {"error", "err"},
                           {"binary_frames", 2}});
     auto body = str_to_msg(header.dump());
@@ -151,7 +160,7 @@ TEST_CASE("TC-1.3.2: error message ignores binary_frames") {
 // ─── TC-3.x: type discrimination ──────────────────────────────────────
 
 TEST_CASE("TC-3.1: error key discriminated as error") {
-    zmqae::json header = zmqae::json::object({{"id", "uuid-001"}, {"error", "fail"}});
+    zmqae::json header = mk_obj({{"id", "uuid-001"}, {"error", "fail"}});
     auto body = str_to_msg(header.dump());
     std::vector<zmq::message_t> bins;
 
@@ -161,7 +170,7 @@ TEST_CASE("TC-3.1: error key discriminated as error") {
 }
 
 TEST_CASE("TC-3.2: value key only discriminated as resume") {
-    zmqae::json header = zmqae::json::object({{"id", "uuid-002"}, {"value", "ok"}});
+    zmqae::json header = mk_obj({{"id", "uuid-002"}, {"value", "ok"}});
     auto body = str_to_msg(header.dump());
     std::vector<zmq::message_t> bins;
 
@@ -171,7 +180,7 @@ TEST_CASE("TC-3.2: value key only discriminated as resume") {
 }
 
 TEST_CASE("TC-3.3: effect key discriminated as perform on client side") {
-    zmqae::json header = zmqae::json::object({{"id", "uuid-003"},
+    zmqae::json header = mk_obj({{"id", "uuid-003"},
                           {"effect", "DoSomething"},
                           {"payload", nullptr}});
     auto body = str_to_msg(header.dump());
@@ -183,7 +192,7 @@ TEST_CASE("TC-3.3: effect key discriminated as perform on client side") {
 }
 
 TEST_CASE("TC-3.4: no discriminating keys returns error") {
-    zmqae::json header = zmqae::json::object({{"id", "uuid-004"}});
+    zmqae::json header = mk_obj({{"id", "uuid-004"}});
     auto body = str_to_msg(header.dump());
     std::vector<zmq::message_t> bins;
 
@@ -195,7 +204,7 @@ TEST_CASE("TC-3.4: no discriminating keys returns error") {
 // ─── TC-4.x: binary_frames handling ───────────────────────────────────
 
 TEST_CASE("TC-4.1.1: binary_frames omitted defaults to 0") {
-    zmqae::json header = zmqae::json::object({{"id", zmqae::generate_uuid()},
+    zmqae::json header = mk_obj({{"id", zmqae::generate_uuid()},
                           {"effect", "Test"},
                           {"payload", {}}});
     auto body = str_to_msg(header.dump());
@@ -207,7 +216,7 @@ TEST_CASE("TC-4.1.1: binary_frames omitted defaults to 0") {
 }
 
 TEST_CASE("TC-4.2.1: binary_frames 1 with 1 frame succeeds") {
-    zmqae::json header = zmqae::json::object({{"id", zmqae::generate_uuid()},
+    zmqae::json header = mk_obj({{"id", zmqae::generate_uuid()},
                           {"effect", "Test"},
                           {"payload", {}},
                           {"binary_frames", 1}});
@@ -222,7 +231,7 @@ TEST_CASE("TC-4.2.1: binary_frames 1 with 1 frame succeeds") {
 }
 
 TEST_CASE("TC-4.2.2: binary_frames 1 with 0 frames returns error") {
-    zmqae::json header = zmqae::json::object({{"id", zmqae::generate_uuid()},
+    zmqae::json header = mk_obj({{"id", zmqae::generate_uuid()},
                           {"effect", "Test"},
                           {"payload", {}},
                           {"binary_frames", 1}});
@@ -235,7 +244,7 @@ TEST_CASE("TC-4.2.2: binary_frames 1 with 0 frames returns error") {
 }
 
 TEST_CASE("TC-4.2.3: binary_frames 0 with 1 frame returns error") {
-    zmqae::json header = zmqae::json::object({{"id", zmqae::generate_uuid()},
+    zmqae::json header = mk_obj({{"id", zmqae::generate_uuid()},
                           {"effect", "Test"},
                           {"payload", {}},
                           {"binary_frames", 0}});
@@ -252,7 +261,7 @@ TEST_CASE("TC-4.3.1: multiple binary frames preserve order") {
     std::vector<std::byte> audio = to_bytes("AUDIO_DATA");
     std::vector<std::byte> video = to_bytes("VIDEO_DATA");
 
-    zmqae::json header = zmqae::json::object({{"id", zmqae::generate_uuid()},
+    zmqae::json header = mk_obj({{"id", zmqae::generate_uuid()},
                           {"effect", "Test"},
                           {"payload", {}},
                           {"binary_frames", 0}});
@@ -269,7 +278,7 @@ TEST_CASE("TC-4.3.1: multiple binary frames preserve order") {
     std::vector<std::byte> audio = to_bytes("AUDIO_DATA");
     std::vector<std::byte> video = to_bytes("VIDEO_DATA");
 
-    zmqae::json header = zmqae::json::object({{"id", zmqae::generate_uuid()},
+    zmqae::json header = mk_obj({{"id", zmqae::generate_uuid()},
                           {"effect", "Test"},
                           {"payload", {}},
                           {"binary_frames", 2}});
@@ -297,7 +306,7 @@ TEST_CASE("MSG-SER-01: perform message round-trip") {
     zmqae::perform_message orig;
     orig.id = zmqae::generate_uuid();
     orig.effect = "RoundTrip";
-    orig.payload = zmqae::json::object({{"nested", true}, {"count", 7}});
+    orig.payload = mk_obj({{"nested", true}, {"count", 7}});
     orig.binary_frames = 0;
 
     auto frames = zmqae::detail::serialize_perform(orig);
@@ -318,7 +327,7 @@ TEST_CASE("MSG-SER-01: perform message round-trip") {
 TEST_CASE("MSG-SER-02: resume message round-trip") {
     zmqae::resume_message orig;
     orig.id = zmqae::generate_uuid();
-    orig.value = zmqae::json::object({{"result", 3.14}});
+    orig.value = mk_obj({{"result", 3.14}});
     orig.binary_frames = 0;
 
     auto frames = zmqae::detail::serialize_resume(orig);
@@ -375,7 +384,7 @@ TEST_CASE("MSG-SER-05: invalid JSON handled gracefully") {
 }
 
 TEST_CASE("MSG-SER-06: non-UUID id string accepted by parse_perform") {
-    zmqae::json header = zmqae::json::object({{"id", "not-a-uuid"},
+    zmqae::json header = mk_obj({{"id", "not-a-uuid"},
                           {"effect", "Test"},
                           {"payload", {}}});
     auto body = str_to_msg(header.dump());
@@ -387,7 +396,7 @@ TEST_CASE("MSG-SER-06: non-UUID id string accepted by parse_perform") {
 }
 
 TEST_CASE("MSG-SER-07: negative binary_frames returns error") {
-    zmqae::json header = zmqae::json::object({{"id", zmqae::generate_uuid()},
+    zmqae::json header = mk_obj({{"id", zmqae::generate_uuid()},
                           {"effect", "Test"},
                           {"payload", {}},
                           {"binary_frames", -1}});
