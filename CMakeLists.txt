@@ -26,8 +26,10 @@ add_subdirectory(extern/cppzmq)
 
 if(WIN32)
     set(ZMQAE_LIBZMQ libzmq-static)
+    set(ZMQAE_CPPZMQ cppzmq-static)
 else()
     set(ZMQAE_LIBZMQ libzmq)
+    set(ZMQAE_CPPZMQ cppzmq)
 endif()
 
 target_include_directories(zmqae INTERFACE
@@ -37,7 +39,7 @@ target_include_directories(zmqae INTERFACE
     ${CMAKE_CURRENT_SOURCE_DIR}/extern/libzmq/include
 )
 
-target_link_libraries(zmqae INTERFACE cppzmq ${ZMQAE_LIBZMQ})
+target_link_libraries(zmqae INTERFACE ${ZMQAE_CPPZMQ} ${ZMQAE_LIBZMQ})
 
 # --- Tests ---
 option(ZMQAE_BUILD_TESTS "Build tests" ON)
