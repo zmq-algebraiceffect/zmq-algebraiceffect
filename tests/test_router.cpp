@@ -14,14 +14,6 @@
 
 namespace {
 
-zmqae::json mk_obj(std::initializer_list<std::pair<const char *, zmqae::json>> pairs) {
-    zmqae::json j;
-    for (const auto &p : pairs) {
-        j[p.first] = p.second;
-    }
-    return j;
-}
-
  void drain_poll(zmqae::client &c, zmqae::router &r, int max_ms = 500) {
     auto deadline = std::chrono::steady_clock::now() +
                     std::chrono::milliseconds{max_ms};
@@ -242,7 +234,9 @@ TEST_CASE("TC-7.2.4: error response has generated ID") {
     dealer.connect("inproc://test-gen-id-001");
     wait_for_threads();
 
-    zmqae::json header = mk_obj({{"effect", "Test"}, {"payload", {}}});
+    zmqae::json header;
+    header["effect"] = "Test";
+    header["payload"] = zmqae::json::object();
     std::string body_str = header.dump();
     zmq::message_t msg{body_str.data(), body_str.size()};
     dealer.send(msg, zmq::send_flags::none);

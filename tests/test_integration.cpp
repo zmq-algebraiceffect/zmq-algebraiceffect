@@ -11,14 +11,6 @@
 
 namespace {
 
-zmqae::json mk_obj(std::initializer_list<std::pair<const char *, zmqae::json>> pairs) {
-    zmqae::json j;
-    for (const auto &p : pairs) {
-        j[p.first] = p.second;
-    }
-    return j;
-}
-
  void drain_poll(zmqae::client &c, zmqae::router &r, int max_ms = 500) {
     auto deadline = std::chrono::steady_clock::now() +
                     std::chrono::milliseconds{max_ms};
@@ -170,7 +162,10 @@ TEST_CASE("INT-01: client to router to resume round-trip") {
     wait_for_threads();
 
     int result = 0;
-    c.perform("Add", mk_obj({{"a", 3}, {"b", 4}}), [&](zmqae::result res) {
+    zmqae::json payload;
+    payload["a"] = 3;
+    payload["b"] = 4;
+    c.perform("Add", payload, [&](zmqae::result res) {
         if (res.is_ok()) {
             result = res.value().get<int>();
         }
