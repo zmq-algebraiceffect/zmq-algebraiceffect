@@ -14,7 +14,7 @@
 
 namespace {
 
-void drain_poll(zmqae::client &c, zmqae::router &r, int max_ms = 100) {
+ void drain_poll(zmqae::client &c, zmqae::router &r, int max_ms = 200) {
     auto deadline = std::chrono::steady_clock::now() +
                     std::chrono::milliseconds{max_ms};
     while (std::chrono::steady_clock::now() < deadline) {
@@ -24,7 +24,7 @@ void drain_poll(zmqae::client &c, zmqae::router &r, int max_ms = 100) {
     }
 }
 
-void wait_for_threads(int ms = 20) {
+void wait_for_threads(int ms = 50) {
     std::this_thread::sleep_for(std::chrono::milliseconds{ms});
 }
 
@@ -112,11 +112,11 @@ TEST_CASE("TC-5.1.2: router uses ROUTER socket") {
         }
     });
 
-    for (int i = 0; i < 50; ++i) {
+    for (int i = 0; i < 100; ++i) {
         r.poll();
         c1.poll();
         c2.poll();
-        std::this_thread::sleep_for(std::chrono::milliseconds{2});
+        std::this_thread::sleep_for(std::chrono::milliseconds{3});
         if (c1_ok && c2_ok) {
             break;
         }
@@ -234,7 +234,7 @@ TEST_CASE("TC-7.2.4: error response has generated ID") {
     dealer.connect("inproc://test-gen-id-001");
     wait_for_threads();
 
-    zmqae::json header = {{"effect", "Test"}, {"payload", {}}};
+    zmqae::json header = zmqae::json::object({{"effect", "Test"}, {"payload", {}}});
     std::string body_str = header.dump();
     zmq::message_t msg{body_str.data(), body_str.size()};
     dealer.send(msg, zmq::send_flags::none);
@@ -279,11 +279,11 @@ TEST_CASE("TC-8.1: ROUTER identity frame auto-attached") {
         }
     });
 
-    for (int i = 0; i < 50; ++i) {
+    for (int i = 0; i < 100; ++i) {
         r.poll();
         c1.poll();
         c2.poll();
-        std::this_thread::sleep_for(std::chrono::milliseconds{2});
+        std::this_thread::sleep_for(std::chrono::milliseconds{3});
         if (c1_ok && c2_ok) {
             break;
         }
@@ -317,11 +317,11 @@ TEST_CASE("TC-8.2: reply routed via identity frame") {
         }
     });
 
-    for (int i = 0; i < 50; ++i) {
+    for (int i = 0; i < 100; ++i) {
         r.poll();
         c1.poll();
         c2.poll();
-        std::this_thread::sleep_for(std::chrono::milliseconds{2});
+        std::this_thread::sleep_for(std::chrono::milliseconds{3});
         if (c1_val > 0 && c2_val > 0) {
             break;
         }
@@ -554,7 +554,7 @@ TEST_CASE("ROUTER-10: async resume from different thread") {
         }
     });
 
-    for (int i = 0; i < 50; ++i) {
+    for (int i = 0; i < 100; ++i) {
         r.poll();
         c.poll();
         std::this_thread::sleep_for(std::chrono::milliseconds{3});

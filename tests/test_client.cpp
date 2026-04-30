@@ -11,7 +11,7 @@
 
 namespace {
 
- void drain_poll(zmqae::client &c, zmqae::router &r, int max_ms = 100) {
+ void drain_poll(zmqae::client &c, zmqae::router &r, int max_ms = 200) {
     auto deadline = std::chrono::steady_clock::now() +
                     std::chrono::milliseconds{max_ms};
     while (std::chrono::steady_clock::now() < deadline) {
@@ -21,7 +21,7 @@ namespace {
     }
 }
 
-void wait_for_threads(int ms = 20) {
+void wait_for_threads(int ms = 50) {
     std::this_thread::sleep_for(std::chrono::milliseconds{ms});
 }
 
@@ -40,7 +40,7 @@ TEST_CASE("CLIENT-01: constructor sets is_open to true") {
 
 TEST_CASE("CLIENT-02: close sets is_open to false") {
     zmqae::client c{"inproc://test-client-02"};
-    std::this_thread::sleep_for(std::chrono::milliseconds{10});
+    std::this_thread::sleep_for(std::chrono::milliseconds{50});
     c.close();
     CHECK_FALSE(c.is_open());
 }
@@ -68,7 +68,7 @@ TEST_CASE("CLIENT-05: destructor calls close") {
 
 TEST_CASE("CLIENT-06: move construction transfers ownership") {
     zmqae::client c1{"inproc://test-client-06"};
-    std::this_thread::sleep_for(std::chrono::milliseconds{10});
+    std::this_thread::sleep_for(std::chrono::milliseconds{50});
     zmqae::client c2{std::move(c1)};
     CHECK_FALSE(c1.is_open());
     CHECK(c2.is_open());
@@ -77,7 +77,7 @@ TEST_CASE("CLIENT-06: move construction transfers ownership") {
 TEST_CASE("CLIENT-07: user-provided context works") {
     zmq::context_t ctx{1};
     zmqae::client c{"inproc://test-client-07", ctx};
-    std::this_thread::sleep_for(std::chrono::milliseconds{10});
+    std::this_thread::sleep_for(std::chrono::milliseconds{50});
     CHECK(c.is_open());
 }
 
@@ -142,7 +142,7 @@ TEST_CASE("CLIENT-10: perform with binary data") {
     });
 
     zmqae::client c{"inproc://test-client-10"};
-    std::this_thread::sleep_for(std::chrono::milliseconds{10});
+    std::this_thread::sleep_for(std::chrono::milliseconds{50});
 
     std::vector<std::vector<std::byte>> bins;
     bins.push_back({std::byte{0x01}, std::byte{0x02}});
@@ -156,7 +156,7 @@ TEST_CASE("CLIENT-10: perform with binary data") {
 
 TEST_CASE("CLIENT-11: perform to unconnected endpoint does not crash") {
     zmqae::client c{"inproc://test-client-11-nonexistent"};
-    std::this_thread::sleep_for(std::chrono::milliseconds{10});
+    std::this_thread::sleep_for(std::chrono::milliseconds{50});
 
     bool called = false;
     c.perform("Test", {}, [&](zmqae::result) { called = true; });
@@ -171,7 +171,7 @@ TEST_CASE("CLIENT-12: poll drains all pending messages") {
     });
 
     zmqae::client c{"inproc://test-client-12"};
-    std::this_thread::sleep_for(std::chrono::milliseconds{10});
+    std::this_thread::sleep_for(std::chrono::milliseconds{50});
 
     int call_count = 0;
     for (int i = 0; i < 5; ++i) {

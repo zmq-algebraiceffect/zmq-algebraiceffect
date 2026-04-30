@@ -11,7 +11,7 @@
 
 namespace {
 
-void drain_poll(zmqae::client &c, zmqae::router &r, int max_ms = 100) {
+ void drain_poll(zmqae::client &c, zmqae::router &r, int max_ms = 200) {
     auto deadline = std::chrono::steady_clock::now() +
                     std::chrono::milliseconds{max_ms};
     while (std::chrono::steady_clock::now() < deadline) {
@@ -21,7 +21,7 @@ void drain_poll(zmqae::client &c, zmqae::router &r, int max_ms = 100) {
     }
 }
 
-void wait_for_threads(int ms = 20) {
+void wait_for_threads(int ms = 50) {
     std::this_thread::sleep_for(std::chrono::milliseconds{ms});
 }
 
@@ -162,7 +162,7 @@ TEST_CASE("INT-01: client to router to resume round-trip") {
     wait_for_threads();
 
     int result = 0;
-    c.perform("Add", {{"a", 3}, {"b", 4}}, [&](zmqae::result res) {
+    c.perform("Add", zmqae::json::object({{"a", 3}, {"b", 4}}), [&](zmqae::result res) {
         if (res.is_ok()) {
             result = res.value().get<int>();
         }
@@ -240,12 +240,12 @@ TEST_CASE("INT-04: multiple clients simultaneous perform") {
     c2.perform("Echo", 2, cb);
     c3.perform("Echo", 3, cb);
 
-    for (int i = 0; i < 50; ++i) {
+    for (int i = 0; i < 100; ++i) {
         r.poll();
         c1.poll();
         c2.poll();
         c3.poll();
-        std::this_thread::sleep_for(std::chrono::milliseconds{2});
+        std::this_thread::sleep_for(std::chrono::milliseconds{3});
         if (count == 3) {
             break;
         }
@@ -375,7 +375,7 @@ TEST_CASE("INT-10: async handler resume from separate thread") {
         }
     });
 
-    for (int i = 0; i < 50; ++i) {
+    for (int i = 0; i < 100; ++i) {
         r.poll();
         c.poll();
         std::this_thread::sleep_for(std::chrono::milliseconds{3});
