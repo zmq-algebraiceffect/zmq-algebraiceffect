@@ -27,18 +27,22 @@ struct resume_message {
     json value;
     int binary_frames{0};
     std::vector<std::vector<std::byte>> binary_data;
+    bool final_field{true};
 };
 
 class result {
     std::string id_;
     bool is_error_{false};
+    bool is_final_{true};
     json value_;
     std::string error_;
     std::vector<std::vector<std::byte>> binary_data_;
 
-    result(std::string id, json value, std::vector<std::vector<std::byte>> bins)
+    result(std::string id, json value, std::vector<std::vector<std::byte>> bins,
+           bool is_final = true)
         : id_{std::move(id)}
         , is_error_{false}
+        , is_final_{is_final}
         , value_(std::move(value))
         , binary_data_{std::move(bins)}
     {}
@@ -51,8 +55,9 @@ class result {
 
 public:
     static result make_resume(std::string id, json value,
-                              std::vector<std::vector<std::byte>> bins = {}) {
-        return result{std::move(id), std::move(value), std::move(bins)};
+                              std::vector<std::vector<std::byte>> bins = {},
+                              bool is_final = true) {
+        return result{std::move(id), std::move(value), std::move(bins), is_final};
     }
 
     static result make_error(std::string id, std::string error) {
@@ -71,6 +76,7 @@ public:
 
     bool is_ok() const { return !is_error_; }
     bool is_error() const { return is_error_; }
+    bool is_final() const { return is_final_; }
     const json &value() const { return value_; }
     const std::string &error() const { return error_; }
     const std::string &id() const { return id_; }

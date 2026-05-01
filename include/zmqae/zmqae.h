@@ -72,6 +72,11 @@ int zmqae_router_poll(zmqae_router_t *router);
 
 int zmqae_router_close(zmqae_router_t *router);
 
+int zmqae_router_set_parent(zmqae_router_t *router, const char *endpoint);
+
+int zmqae_router_set_nested_endpoint(zmqae_router_t *router,
+                                      const char *endpoint);
+
 const char *zmqae_ctx_get_id(zmqae_perform_ctx_t *ctx);
 const char *zmqae_ctx_get_effect(zmqae_perform_ctx_t *ctx);
 const char *zmqae_ctx_get_payload(zmqae_perform_ctx_t *ctx);
@@ -83,6 +88,8 @@ int zmqae_ctx_get_binary(zmqae_perform_ctx_t *ctx, int index,
 int zmqae_ctx_resume(zmqae_perform_ctx_t *ctx, const char *json_value);
 int zmqae_ctx_resume_binary(zmqae_perform_ctx_t *ctx, const char *json_value,
                              const zmqae_binary_t *bins, int bin_count);
+int zmqae_ctx_resume_streaming(zmqae_perform_ctx_t *ctx, const char *json_value,
+                                int is_final);
 int zmqae_ctx_error(zmqae_perform_ctx_t *ctx, const char *error_message);
 
 void zmqae_ctx_release(zmqae_perform_ctx_t *ctx);

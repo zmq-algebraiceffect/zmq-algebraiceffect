@@ -455,3 +455,235 @@ TEST_CASE("INT-13: binary_frames exceeding max (9) returns error") {
 
     drain_poll(c, r);
 }
+
+TEST_CASE("STREAM-01: handler sends streaming resumes then final resume") {
+    zmqae::router r{"inproc://test-stream-01"};
+    r.on("Stream", [](std::shared_ptr<zmqae::perform_context> ctx) {
+        ctx->resume("chunk1", {}, false);
+        ctx->resume("chunk2", {}, false);
+        ctx->resume("done", {}, true);
+    });
+
+    zmqae::client c{"inproc://test-stream-01"};
+    wait_for_threads();
+
+    std::vector<std::string> received;
+    bool got_final = false;
+
+    c.perform("Stream", nullptr, [&](zmqae::result res) {
+        if (res.is_ok()) {
+            received.push_back(res.value().get<std::string>());
+            if (res.is_final()) {
+                got_final = true;
+            }
+        }
+    });
+
+    drain_poll(c, r);
+
+    CHECK(received.size() == 3);
+    CHECK(received[0] == "chunk1");
+    CHECK(received[1] == "chunk2");
+    CHECK(received[2] == "done");
+    CHECK(got_final);
+}
+
+TEST_CASE("STREAM-02: intermediate results are not final") {
+    zmqae::router r{"inproc://test-stream-02"};
+    r.on("Partial", [](std::shared_ptr<zmqae::perform_context> ctx) {
+        ctx->resume("partial", {}, false);
+        ctx->resume("final_result", {}, true);
+    });
+
+    zmqae::client c{"inproc://test-stream-02"};
+    wait_for_threads();
+
+    std::vector<bool> final_flags;
+
+    c.perform("Partial", nullptr, [&](zmqae::result res) {
+        if (res.is_ok()) {
+            final_flags.push_back(res.is_final());
+        }
+    });
+
+    drain_poll(c, r);
+
+    CHECK(final_flags.size() == 2);
+    CHECK(final_flags[0] == false);
+    CHECK(final_flags[1] == true);
+}
+
+TEST_CASE("STREAM-03: pending entry not removed until final") {
+    zmqae::router r{"inproc://test-stream-03"};
+
+    std::shared_ptr<zmqae::perform_context> held_ctx;
+    std::atomic<bool> handler_fired{false};
+    r.on("Hold", [&](std::shared_ptr<zmqae::perform_context> ctx) {
+        held_ctx = ctx;
+        handler_fired = true;
+    });
+
+    zmqae::client c{"inproc://test-stream-03"};
+    wait_for_threads();
+
+    int call_count = 0;
+    c.perform("Hold", nullptr, [&](zmqae::result res) {
+        call_count++;
+    });
+
+    for (int i = 0; i < 200; ++i) {
+        r.poll();
+        c.poll();
+        std::this_thread::sleep_for(std::chrono::milliseconds{2});
+        if (handler_fired.load()) {
+            break;
+        }
+    }
+    REQUIRE(held_ctx != nullptr);
+
+    held_ctx->resume("intermediate", {}, false);
+
+    for (int i = 0; i < 200; ++i) {
+        r.poll();
+        c.poll();
+        std::this_thread::sleep_for(std::chrono::milliseconds{2});
+        if (call_count >= 1) {
+            break;
+        }
+    }
+    CHECK(call_count == 1);
+
+    held_ctx->resume("done", {}, true);
+
+    for (int i = 0; i < 200; ++i) {
+        r.poll();
+        c.poll();
+        std::this_thread::sleep_for(std::chrono::milliseconds{2});
+        if (call_count >= 2) {
+            break;
+        }
+    }
+    CHECK(call_count == 2);
+
+    held_ctx.reset();
+}
+
+TEST_CASE("STREAM-04: backward compat — resume without final flag is final") {
+    zmqae::router r{"inproc://test-stream-04"};
+    r.on("Compat", [](std::shared_ptr<zmqae::perform_context> ctx) {
+        ctx->resume("legacy_result", {});
+    });
+
+    zmqae::client c{"inproc://test-stream-04"};
+    wait_for_threads();
+
+    bool got_result = false;
+    bool got_final = false;
+
+    c.perform("Compat", nullptr, [&](zmqae::result res) {
+        if (res.is_ok()) {
+            got_result = true;
+            got_final = res.is_final();
+        }
+    });
+
+    drain_poll(c, r);
+
+    CHECK(got_result);
+    CHECK(got_final);
+}
+
+TEST_CASE("STREAM-05: resume(value) single-arg overload is final") {
+    zmqae::router r{"inproc://test-stream-05"};
+    r.on("SingleArg", [](std::shared_ptr<zmqae::perform_context> ctx) {
+        ctx->resume("quick");
+    });
+
+    zmqae::client c{"inproc://test-stream-05"};
+    wait_for_threads();
+
+    bool got_final = false;
+
+    c.perform("SingleArg", nullptr, [&](zmqae::result res) {
+        if (res.is_ok()) {
+            got_final = res.is_final();
+        }
+    });
+
+    drain_poll(c, r);
+
+    CHECK(got_final);
+}
+
+TEST_CASE("STREAM-06: streaming resume after final resume is rejected") {
+    zmqae::router r{"inproc://test-stream-06"};
+
+    std::shared_ptr<zmqae::perform_context> held_ctx;
+    std::atomic<bool> handler_fired{false};
+    r.on("Reject", [&](std::shared_ptr<zmqae::perform_context> ctx) {
+        held_ctx = ctx;
+        handler_fired = true;
+    });
+
+    zmqae::client c{"inproc://test-stream-06"};
+    wait_for_threads();
+
+    int call_count = 0;
+    c.perform("Reject", nullptr, [&](zmqae::result res) {
+        call_count++;
+    });
+
+    for (int i = 0; i < 200; ++i) {
+        r.poll();
+        c.poll();
+        std::this_thread::sleep_for(std::chrono::milliseconds{2});
+        if (handler_fired.load()) {
+            break;
+        }
+    }
+    REQUIRE(held_ctx != nullptr);
+
+    held_ctx->resume("s1", {}, false);
+    held_ctx->resume("final", {}, true);
+    held_ctx->resume("s2", {}, false);
+
+    drain_poll(c, r);
+
+    CHECK(call_count == 2);
+
+    held_ctx.reset();
+}
+
+TEST_CASE("STREAM-07: context dropped after streaming resume sends error") {
+    zmqae::router r{"inproc://test-stream-07"};
+
+    std::shared_ptr<zmqae::perform_context> held_ctx;
+    r.on("Drop", [&held_ctx](std::shared_ptr<zmqae::perform_context> ctx) {
+        held_ctx = ctx;
+        held_ctx->resume("partial", {}, false);
+    });
+
+    zmqae::client c{"inproc://test-stream-07"};
+    wait_for_threads();
+
+    std::vector<std::string> values;
+    bool got_error = false;
+
+    c.perform("Drop", nullptr, [&](zmqae::result res) {
+        if (res.is_ok()) {
+            values.push_back(res.value().get<std::string>());
+        } else if (res.is_error()) {
+            got_error = true;
+        }
+    });
+
+    drain_poll(c, r);
+
+    CHECK(values.size() == 1);
+    CHECK(values[0] == "partial");
+
+    held_ctx.reset();
+    drain_poll(c, r);
+
+    CHECK(got_error);
+}

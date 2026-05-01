@@ -53,9 +53,17 @@ TEST_CASE("GCC JSON sanity: result::make_resume preserves json type") {
     auto r = zmqae::result::make_resume("test-id", zmqae::json(42));
     CHECK(r.value().is_number_integer());
     CHECK(r.value().get<int>() == 42);
+    CHECK(r.is_final() == true);
 
     auto r2 = zmqae::result::make_resume("test-id-2", zmqae::json(nullptr));
     CHECK(r2.value().is_null());
+    CHECK(r2.is_final() == true);
+}
+
+TEST_CASE("GCC JSON sanity: result::make_resume with is_final=false") {
+    auto r = zmqae::result::make_resume("test-id", zmqae::json(42), {}, false);
+    CHECK(r.value().get<int>() == 42);
+    CHECK(r.is_final() == false);
 }
 
 TEST_CASE("GCC JSON sanity: expected<result> round-trip") {
@@ -456,4 +464,83 @@ TEST_CASE("MSG-SER-08: error message serialized as single frame") {
     CHECK(header["id"].get<std::string>() == "uuid-err");
     CHECK(header["error"].get<std::string>() == "test error");
     CHECK_FALSE(header.contains("binary_frames"));
+}
+
+TEST_CASE("MSG-SER-09: streaming resume omits final field when true") {
+    zmqae::resume_message msg;
+    msg.id = zmqae::generate_uuid();
+    msg.value = 42;
+    msg.final_field = true;
+
+    auto frames = zmqae::detail::serialize_resume(msg);
+    std::string body_str = msg_to_str(frames[0]);
+    auto header = zmqae::json::parse(body_str);
+
+    CHECK_FALSE(header.contains("final"));
+}
+
+TEST_CASE("MSG-SER-10: streaming resume includes final:false when false") {
+    zmqae::resume_message msg;
+    msg.id = zmqae::generate_uuid();
+    msg.value = 42;
+    msg.final_field = false;
+
+    auto frames = zmqae::detail::serialize_resume(msg);
+    std::string body_str = msg_to_str(frames[0]);
+    auto header = zmqae::json::parse(body_str);
+
+    CHECK(header.contains("final"));
+    CHECK(header["final"].get<bool>() == false);
+}
+
+TEST_CASE("MSG-SER-11: resume without final field parsed as is_final=true") {
+    std::string json_str = R"({"id":")" + zmqae::generate_uuid() + R"(","value":42})";
+    auto body = str_to_msg(json_str);
+    std::vector<zmq::message_t> bins;
+
+    auto result = zmqae::detail::parse_incoming_message(body, bins);
+    REQUIRE(result.has_value());
+    CHECK(result->is_ok());
+    CHECK(result->is_final() == true);
+}
+
+TEST_CASE("MSG-SER-12: resume with final=false parsed as is_final=false") {
+    std::string json_str = R"({"id":")" + zmqae::generate_uuid() +
+                           R"(","value":42,"final":false})";
+    auto body = str_to_msg(json_str);
+    std::vector<zmq::message_t> bins;
+
+    auto result = zmqae::detail::parse_incoming_message(body, bins);
+    REQUIRE(result.has_value());
+    CHECK(result->is_ok());
+    CHECK(result->is_final() == false);
+}
+
+TEST_CASE("MSG-SER-13: resume with final=true parsed as is_final=true") {
+    std::string json_str = R"({"id":")" + zmqae::generate_uuid() +
+                           R"(","value":42,"final":true})";
+    auto body = str_to_msg(json_str);
+    std::vector<zmq::message_t> bins;
+
+    auto result = zmqae::detail::parse_incoming_message(body, bins);
+    REQUIRE(result.has_value());
+    CHECK(result->is_ok());
+    CHECK(result->is_final() == true);
+}
+
+TEST_CASE("MSG-SER-14: streaming resume round-trip") {
+    zmqae::resume_message orig;
+    orig.id = zmqae::generate_uuid();
+    orig.value = "partial";
+    orig.final_field = false;
+
+    auto frames = zmqae::detail::serialize_resume(orig);
+    zmq::message_t body = std::move(frames[0]);
+    std::vector<zmq::message_t> bins;
+
+    auto parsed = zmqae::detail::parse_incoming_message(body, bins);
+    REQUIRE(parsed.has_value());
+    CHECK(parsed->is_ok());
+    CHECK(parsed->is_final() == false);
+    CHECK(parsed->value() == orig.value);
 }

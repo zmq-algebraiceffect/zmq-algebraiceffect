@@ -19,6 +19,8 @@
 
 namespace zmqae {
 
+class client;
+
 class perform_context {
 public:
     perform_context(
@@ -35,6 +37,7 @@ public:
         , identity_frame_{std::move(identity_frame)}
         , send_queue_{std::move(send_queue)}
         , resumed_{false}
+        , ever_resumed_{false}
     {}
 
     ~perform_context() {
@@ -65,22 +68,41 @@ public:
     const std::vector<std::byte> &binary(int index) const { return binary_data_.at(index); }
 
     void resume(const json &value) {
-        resume(value, {});
+        resume(value, {}, true);
     }
 
     void resume(const json &value,
                 const std::vector<std::vector<std::byte>> &bins) {
-        bool expected = false;
-        if (!resumed_.compare_exchange_strong(expected, true)) {
-            SPDLOG_WARN("perform_context::resume() called but already resumed: id={}", id_);
-            return;
+        resume(value, bins, true);
+    }
+
+    void resume(const json &value,
+                const std::vector<std::vector<std::byte>> &bins,
+                bool final_flag) {
+        if (final_flag) {
+            bool expected = false;
+            if (!resumed_.compare_exchange_strong(expected, true)) {
+                SPDLOG_WARN(
+                    "perform_context::resume(final) called but already resumed: id={}", id_);
+                return;
+            }
+        } else {
+            if (resumed_.load()) {
+                SPDLOG_WARN(
+                    "perform_context::resume(streaming) called but already finalized: id={}",
+                    id_);
+                return;
+            }
         }
+
+        ever_resumed_ = true;
 
         resume_message msg;
         msg.id = id_;
         msg.value = value;
         msg.binary_frames = static_cast<int>(bins.size());
         msg.binary_data = bins;
+        msg.final_field = final_flag;
 
         auto frames = detail::serialize_resume(msg);
         send_frame(std::move(frames));
@@ -93,11 +115,16 @@ public:
             return;
         }
 
+        ever_resumed_ = true;
+
         auto frames = detail::serialize_error(id_, message);
         send_frame(std::move(frames));
     }
 
     bool is_resumed() const { return resumed_.load(); }
+
+    void set_client(client *c);
+    client *get_client() const;
 
 private:
     void send_frame(std::vector<zmq::message_t> frames) {
@@ -118,6 +145,11 @@ private:
     zmq::message_t identity_frame_;
     std::shared_ptr<detail::mpsc_queue<std::vector<zmq::message_t>>> send_queue_;
     std::atomic<bool> resumed_;
+    std::atomic<bool> ever_resumed_;
+    client *nested_client_{nullptr};
 };
+
+inline void perform_context::set_client(client *c) { nested_client_ = c; }
+inline client *perform_context::get_client() const { return nested_client_; }
 
 }

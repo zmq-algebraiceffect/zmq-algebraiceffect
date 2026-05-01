@@ -44,6 +44,9 @@ inline std::vector<zmq::message_t> serialize_resume(const resume_message &msg) {
     json header;
     header["id"] = msg.id;
     header["value"] = msg.value;
+    if (!msg.final_field) {
+        header["final"] = false;
+    }
     if (msg.binary_frames > 0) {
         header["binary_frames"] = msg.binary_frames;
     }
@@ -189,6 +192,13 @@ parse_incoming_message(zmq::message_t &body, std::vector<zmq::message_t> &bins) 
     if (header.contains("value")) {
         json value = header["value"];
 
+        bool is_final = true;
+        if (header.contains("final")) {
+            if (header["final"].is_boolean()) {
+                is_final = header["final"].get<bool>();
+            }
+        }
+
         int declared_bins = 0;
         if (header.contains("binary_frames")) {
             if (!header["binary_frames"].is_number_integer()) {
@@ -222,7 +232,7 @@ parse_incoming_message(zmq::message_t &body, std::vector<zmq::message_t> &bins) 
         }
 
         return expected<result, std::string>::ok(
-            result::make_resume(id, std::move(value), std::move(binary_data)));
+            result::make_resume(id, std::move(value), std::move(binary_data), is_final));
     }
 
     if (header.contains("effect")) {

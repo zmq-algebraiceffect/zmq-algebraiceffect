@@ -10,12 +10,14 @@
 #include <string>
 #include <thread>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
 #include <spdlog/spdlog.h>
 #include <zmq.hpp>
 
+#include "client.hpp"
 #include "detail/context.hpp"
 #include "detail/message.hpp"
 #include "detail/thread_queue.hpp"
@@ -64,6 +66,8 @@ public:
         , zmq_thread_{std::move(other.zmq_thread_)}
         , handlers_{std::move(other.handlers_)}
         , unregistered_handler_{std::move(other.unregistered_handler_)}
+        , parent_client_{std::move(other.parent_client_)}
+        , forwarded_{std::move(other.forwarded_)}
     {}
 
     router &operator=(router &&other) noexcept {
@@ -73,6 +77,9 @@ public:
             zmq_thread_ = std::move(other.zmq_thread_);
             handlers_ = std::move(other.handlers_);
             unregistered_handler_ = std::move(other.unregistered_handler_);
+            nested_client_ = std::move(other.nested_client_);
+            parent_client_ = std::move(other.parent_client_);
+            forwarded_ = std::move(other.forwarded_);
         }
         return *this;
     }
@@ -93,6 +100,20 @@ public:
         unregistered_handler_ = std::move(handler);
     }
 
+    void set_nested_endpoint(const std::string &endpoint) {
+        nested_client_ = std::make_unique<client>(endpoint);
+    }
+
+    void set_parent(const std::string &endpoint) {
+        parent_client_ = std::make_unique<client>(endpoint);
+        SPDLOG_INFO("router: parent set to {}", endpoint);
+    }
+
+    void clear_parent() {
+        parent_client_.reset();
+        forwarded_.clear();
+    }
+
     void poll() {
         if (!state_ || !state_->running.load()) {
             return;
@@ -100,14 +121,24 @@ public:
 
         auto items = state_->recv_queue->drain();
         for (auto &ctx : items) {
+            ctx->set_client(nested_client_.get());
             auto it = handlers_.find(ctx->effect());
             if (it != handlers_.end()) {
                 dispatch_handler(it->second, ctx);
             } else if (unregistered_handler_.has_value()) {
                 dispatch_handler(*unregistered_handler_, ctx);
+            } else if (parent_client_) {
+                forward_to_parent(ctx);
             } else {
                 ctx->error("no handler for: " + ctx->effect());
             }
+        }
+
+        if (nested_client_ && nested_client_->is_open()) {
+            nested_client_->poll();
+        }
+        if (parent_client_ && parent_client_->is_open()) {
+            parent_client_->poll();
         }
     }
 
@@ -130,6 +161,15 @@ public:
         state_.reset();
         handlers_.clear();
         unregistered_handler_.reset();
+        if (nested_client_) {
+            nested_client_->close();
+            nested_client_.reset();
+        }
+        if (parent_client_) {
+            parent_client_->close();
+            parent_client_.reset();
+        }
+        forwarded_.clear();
     }
 
 private:
@@ -146,6 +186,30 @@ private:
                 ctx->error("handler error: unknown exception");
             }
         }
+    }
+
+    void forward_to_parent(std::shared_ptr<perform_context> ctx) {
+        std::vector<std::vector<std::byte>> bins;
+        bins.reserve(ctx->binary_count());
+        for (int i = 0; i < ctx->binary_count(); ++i) {
+            bins.push_back(ctx->binary(i));
+        }
+
+        parent_client_->perform(
+            ctx->effect(), ctx->payload(), bins,
+            [this, ctx](result res) {
+                if (res.is_ok()) {
+                    std::vector<std::vector<std::byte>> res_bins;
+                    res_bins.reserve(res.binary_count());
+                    for (int i = 0; i < res.binary_count(); ++i) {
+                        res_bins.push_back(res.binary(i));
+                    }
+                    ctx->resume(res.value(), res_bins);
+                } else {
+                    ctx->error(res.error());
+                }
+                forwarded_.erase(res.id());
+            });
     }
 
     void start_zmq_thread() {
@@ -240,6 +304,9 @@ private:
     std::thread zmq_thread_;
     std::unordered_map<std::string, handler_fn> handlers_;
     std::optional<handler_fn> unregistered_handler_;
+    std::unique_ptr<client> nested_client_;
+    std::unique_ptr<client> parent_client_;
+    std::unordered_set<std::string> forwarded_;
 };
 
 }

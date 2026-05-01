@@ -327,6 +327,53 @@ int zmqae_router_close(zmqae_router_t *router) {
     }
 }
 
+int zmqae_router_set_parent(zmqae_router_t *router, const char *endpoint) {
+    try {
+        if (!router) {
+            return ZMQAE_INVALID;
+        }
+        if (!endpoint) {
+            set_last_error("endpoint is null");
+            return ZMQAE_INVALID;
+        }
+        auto *r = opaque_ptr<c_router>(router);
+        if (!r->impl || !r->impl->is_open()) {
+            return ZMQAE_CLOSED;
+        }
+        r->impl->set_parent(std::string{endpoint});
+        return ZMQAE_OK;
+    } catch (const std::exception &e) {
+        set_last_error(e.what());
+        return ZMQAE_ERROR;
+    } catch (...) {
+        return ZMQAE_ERROR;
+    }
+}
+
+int zmqae_router_set_nested_endpoint(zmqae_router_t *router,
+                                      const char *endpoint) {
+    try {
+        if (!router) {
+            return ZMQAE_INVALID;
+        }
+        if (!endpoint) {
+            set_last_error("endpoint is null");
+            return ZMQAE_INVALID;
+        }
+        auto *r = opaque_ptr<c_router>(router);
+        if (!r->impl || !r->impl->is_open()) {
+            return ZMQAE_CLOSED;
+        }
+        r->impl->set_nested_endpoint(std::string{endpoint});
+        return ZMQAE_OK;
+    } catch (const std::exception &e) {
+        set_last_error(e.what());
+        return ZMQAE_ERROR;
+    } catch (...) {
+        return ZMQAE_ERROR;
+    }
+}
+
 const char *zmqae_ctx_get_id(zmqae_perform_ctx_t *ctx) {
     if (!ctx) {
         return "";
@@ -418,7 +465,25 @@ int zmqae_ctx_resume_binary(zmqae_perform_ctx_t *ctx, const char *json_value,
             }
         }
 
-        c->impl->resume(val, vec_bins);
+        c->impl->resume(val, vec_bins, true);
+        return ZMQAE_OK;
+    } catch (const std::exception &e) {
+        set_last_error(e.what());
+        return ZMQAE_ERROR;
+    } catch (...) {
+        return ZMQAE_ERROR;
+    }
+}
+
+int zmqae_ctx_resume_streaming(zmqae_perform_ctx_t *ctx, const char *json_value,
+                                int is_final) {
+    try {
+        if (!ctx) {
+            return ZMQAE_INVALID;
+        }
+        auto *c = opaque_ptr<c_ctx>(ctx);
+        auto val = json_value ? zmqae::json::parse(json_value) : zmqae::json{};
+        c->impl->resume(val, {}, is_final != 0);
         return ZMQAE_OK;
     } catch (const std::exception &e) {
         set_last_error(e.what());

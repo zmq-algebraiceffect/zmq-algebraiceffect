@@ -7,6 +7,7 @@ add_executable(zmqae_tests
     test_client.cpp
     test_router.cpp
     test_integration.cpp
+    test_nested_perform.cpp
     test_c_api.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../src/c_api.cpp
 )

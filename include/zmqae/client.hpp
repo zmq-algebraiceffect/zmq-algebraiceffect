@@ -142,8 +142,11 @@ public:
         for (auto &item : items) {
             auto it = pending_.find(item.id());
             if (it != pending_.end()) {
-                perform_callback cb = std::move(it->second.callback);
-                pending_.erase(it);
+                bool final = item.is_final();
+                perform_callback cb = it->second.callback;
+                if (final) {
+                    pending_.erase(it);
+                }
                 cb(std::move(item));
             }
         }
