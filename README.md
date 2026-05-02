@@ -1,6 +1,6 @@
 # zmq-algebraiceffect
 
-C++17 header-only library that implements [Algebraic Effects](https://github.com/zmq-algebraiceffect/protocol) semantics over ZeroMQ.
+C++17 header-only library that implements [Algebraic Effects](https://github.com/zmqae/protocol) semantics over ZeroMQ.
 
 ```cpp
 // Client (performer) side
@@ -25,7 +25,7 @@ while (router.poll(std::chrono::milliseconds{100})) {}
 
 ## Overview
 
-This library implements the [zmq-algebraiceffect protocol](https://github.com/zmq-algebraiceffect/protocol) (v0.0.1), which brings Algebraic Effects-style `perform`/`resume` semantics to distributed systems via ZeroMQ.
+This library implements the [zmq-algebraiceffect protocol](https://github.com/zmqae/protocol) (v0.0.1), which brings Algebraic Effects-style `perform`/`resume` semantics to distributed systems via ZeroMQ.
 
 Key features:
 
@@ -46,7 +46,7 @@ Key features:
 ### Build
 
 ```bash
-git clone --recurse-submodules https://github.com/zmq-algebraiceffect/zmq-algebraiceffect.git
+git clone --recurse-submodules https://github.com/zmqae/zmq-algebraiceffect.git
 cd zmq-algebraiceffect
 
 cmake -B build -DCMAKE_BUILD_TYPE=Release
@@ -192,7 +192,7 @@ See [DESIGN.md](DESIGN.md) for the full design rationale, API signatures, and th
 
 ## Protocol Spec
 
-See [PROTOCOL.md](https://github.com/zmq-algebraiceffect/protocol/blob/main/PROTOCOL.md) for the wire protocol specification.
+See [PROTOCOL.md](https://github.com/zmqae/protocol/blob/main/PROTOCOL.md) for the wire protocol specification.
 
 ## License
 
